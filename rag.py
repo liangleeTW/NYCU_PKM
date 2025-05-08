@@ -34,7 +34,7 @@ class RAGSystem:
         )
         
         # Initialize LLM
-        self.llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.2)
+        self.llm = ChatOpenAI(model_name="gpt-4o", temperature=0.2)
         
         # Create text splitter
         self.text_splitter = RecursiveCharacterTextSplitter(
