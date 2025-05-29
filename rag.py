@@ -21,7 +21,10 @@ CHROMA_PERSIST_DIRECTORY = os.path.join(tempfile.gettempdir(), "chroma_db")
 COLLECTION_NAME = "documents"
 
 class RAGSystem:
-    def __init__(self):
+    def __init__(self, model_name: str = "gpt-4o"):
+        # Store the model name
+        self.model_name = model_name
+        
         # Initialize OpenAI embeddings
         self.embeddings = OpenAIEmbeddings()
         
@@ -32,9 +35,10 @@ class RAGSystem:
             embedding_function=self.embeddings,
             collection_name=COLLECTION_NAME
         )
-        
-        # Initialize LLM
-        self.llm = ChatOpenAI(model_name="gpt-4o", temperature=0.2)
+            
+        # Initialize LLM with selected model
+        self.llm = ChatOpenAI(model_name=model_name, temperature=0.2)
+        self.model_name = model_name
         
         # Create text splitter
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -107,7 +111,15 @@ class RAGSystem:
         # Retrieve relevant documents
         docs = self.retrieve_documents(query)
         context = "\n\n".join([doc.page_content for doc in docs])
+    
+        # Create the full prompt
+        full_prompt = prompt.format(context=context, question=query)
         
+        # Stream the response
+        for chunk in self.llm.stream(full_prompt):
+            if chunk.content:
+                yield chunk.content
+                
         # Generate a response
         chain = RetrievalQA.from_chain_type(
             llm=self.llm,
