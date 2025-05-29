@@ -9,12 +9,17 @@ import os
 from rag import RAGSystem
 from utils import generate_user_id, generate_session_id, save_uploaded_file
 
-# Initialize RAG system
-@st.cache_resource
-def get_rag_system():
-    return RAGSystem()
 
-rag_system = get_rag_system()
+# Initialize RAG system with selected model
+@st.cache_resource
+def get_rag_system(_model_name):
+    return RAGSystem(model_name=_model_name)
+
+# Get RAG system with selected model
+if "selected_model" not in st.session_state:
+    st.session_state.selected_model = "gpt-4o"
+
+rag_system = get_rag_system(st.session_state.selected_model)
 
 # Initialize session state
 if "user_id" not in st.session_state:
@@ -75,6 +80,27 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
+# Model selection
+st.header("Model Selection")
+model_options = [
+    "gpt-4o",
+    "gpt-4o-mini", 
+    "gpt-4-turbo",
+    "gpt-3.5-turbo"
+]
+selected_model = st.selectbox(
+    "Choose AI Model:",
+    model_options,
+    index=0,  # Default to gpt-4o
+    help="Select the OpenAI model for generating responses"
+)
+
+# Store selected model in session state
+if "selected_model" not in st.session_state:
+    st.session_state.selected_model = selected_model
+else:
+    st.session_state.selected_model = selected_model
+    
 # Display chat messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -89,29 +115,35 @@ if prompt := st.chat_input("What would you like to know?"):
     
     # Generate a response
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            # Get chat history
-            history = [
-                {"query": msg["content"], "response": st.session_state.messages[i+1]["content"]}
-                for i, msg in enumerate(st.session_state.messages[:-1])
-                if msg["role"] == "user" and i+1 < len(st.session_state.messages)
-            ]
+        # with st.spinner("Thinking..."):
+        # Get chat history
+        history = [
+            {"query": msg["content"], "response": st.session_state.messages[i+1]["content"]}
+            for i, msg in enumerate(st.session_state.messages[:-1])
+            if msg["role"] == "user" and i+1 < len(st.session_state.messages)
+        ]
+        
+        # Create placeholder for streaming response
+        response_placeholder = st.empty()
+        full_response = ""
+        
+        # Stream the response
+        for chunk in rag_system.generate_response(prompt, history):
+            full_response += chunk
+            response_placeholder.markdown(full_response + "▌")
+        
+        # Final response without cursor
+        response_placeholder.markdown(full_response)
             
-            # Generate response
-            response = rag_system.generate_response(prompt, history)
-            
-            # Save chat to session state
-            st.session_state.chat_history.append({
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "query": prompt,
-                "response": response
-            })
-            
-            # Display response
-            st.markdown(response)
+        # Save chat to session state
+        st.session_state.chat_history.append({
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "query": prompt,
+            "response": full_response
+        })
     
     # Add assistant response to chat
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
 
 # Display chat history tab
 st.header("Chat History")
