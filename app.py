@@ -37,6 +37,9 @@ if "uploaded_documents" not in st.session_state:
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
+if "selected_tone" not in st.session_state:
+    st.session_state.selected_tone = "Professional Tutor"
+
 # App title
 st.title("RAG Chat System")
 
@@ -80,26 +83,54 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# Model selection
-st.header("Model Selection")
-model_options = [
-    "gpt-4o",
-    "gpt-4o-mini", 
-    "gpt-4-turbo",
-    "gpt-3.5-turbo"
-]
-selected_model = st.selectbox(
-    "Choose AI Model:",
-    model_options,
-    index=0,  # Default to gpt-4o
-    help="Select the OpenAI model for generating responses"
-)
+# Model and Tone Selection
+col1, col2 = st.columns(2)
 
-# Store selected model in session state
-if "selected_model" not in st.session_state:
-    st.session_state.selected_model = selected_model
-else:
-    st.session_state.selected_model = selected_model
+with col1:
+    st.header("Model Selection")
+    model_options = [
+        "gpt-4o",
+        "gpt-4o-mini", 
+        "gpt-4-turbo",
+        "gpt-3.5-turbo"
+    ]
+    selected_model = st.selectbox(
+        "Choose AI Model:",
+        model_options,
+        index=0,  # Default to gpt-4o
+        help="Select the OpenAI model for generating responses"
+    )
+
+    # Store selected model in session state
+    if "selected_model" not in st.session_state:
+        st.session_state.selected_model = selected_model
+    else:
+        st.session_state.selected_model = selected_model
+
+with col2:
+    st.header("Teaching Style")
+    tone_options = {
+        "Professional Tutor": "A knowledgeable and patient tutor who provides clear, structured explanations",
+        "Encouraging Mentor": "A supportive and motivating teacher who builds confidence and celebrates progress",
+        "Socratic Guide": "A thoughtful educator who asks probing questions to help students discover answers themselves",
+        "Simple Explainer": "A teacher who breaks down complex concepts into easy-to-understand language",
+        "Interactive Coach": "An engaging educator who uses examples, analogies, and interactive approaches",
+        "Step-by-Step Instructor": "A methodical teacher who provides detailed, sequential explanations",
+        "Friendly Helper": "A warm and approachable tutor who creates a comfortable learning environment"
+    }
+    
+    selected_tone = st.selectbox(
+        "Choose Teaching Style:",
+        list(tone_options.keys()),
+        index=0,
+        help="Select the teaching style that best fits your learning preferences"
+    )
+    
+    # Display tone description
+    st.info(f"**{selected_tone}:** {tone_options[selected_tone]}")
+    
+    # Store selected tone in session state
+    st.session_state.selected_tone = selected_tone
     
 # Display chat messages
 for message in st.session_state.messages:
@@ -115,7 +146,6 @@ if prompt := st.chat_input("What would you like to know?"):
     
     # Generate a response
     with st.chat_message("assistant"):
-        # with st.spinner("Thinking..."):
         # Get chat history
         history = [
             {"query": msg["content"], "response": st.session_state.messages[i+1]["content"]}
@@ -127,8 +157,8 @@ if prompt := st.chat_input("What would you like to know?"):
         response_placeholder = st.empty()
         full_response = ""
         
-        # Stream the response
-        for chunk in rag_system.generate_response(prompt, history):
+        # Stream the response with selected tone
+        for chunk in rag_system.generate_response(prompt, history, st.session_state.selected_tone):
             full_response += chunk
             response_placeholder.markdown(full_response + "▌")
         
@@ -139,7 +169,8 @@ if prompt := st.chat_input("What would you like to know?"):
         st.session_state.chat_history.append({
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "query": prompt,
-            "response": full_response
+            "response": full_response,
+            "tone": st.session_state.selected_tone
         })
     
     # Add assistant response to chat
@@ -153,6 +184,7 @@ if st.session_state.chat_history:
     history_df = pd.DataFrame([
         {
             "Timestamp": chat["timestamp"],
+            "Teaching Style": chat.get("tone", "Not specified"),
             "Query": chat["query"],
             "Response": chat["response"]
         }
@@ -162,4 +194,3 @@ if st.session_state.chat_history:
     st.dataframe(history_df, use_container_width=True)
 else:
     st.info("No chat history for this session yet.")
-
